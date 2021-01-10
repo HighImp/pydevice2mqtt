@@ -8,22 +8,28 @@ mqtt_settings:
     discovery_prefix: homeassistant
     operating_prefix: pydevice2mqtt
 
-
 remote_devices:
   RPI_GPIO:
-    - name: AutoButton
-      object_id: autoexamplebutton
+    - name: SwitchState
+      object_id: switch_state
       component: binary_sensor
-      pin: 11
-    - name: AutoSwitch
-      object_id: autoexampleswitch
-      component: switch
-      pin: 11
+      pin: 4
+      inverted: true
 
   RPI_RGB:
-    - name: AlarmButton
-      object_id: alarm_button
+    - name: SwitchLight
+      object_id: switch_ligth
       component: light
-      pin_r: 1
-      pin_g: 2
-      pin_b: 3
+      pin_r: 17
+      pin_g: 22
+      pin_b: 27
+      active_high: true
+      pwm_led: false
+
+  ESpeakTTS:
+    - name: TTSSpeaker
+      object_id: tts_speaker
+      component: tts
+      voice: mb-de6
+      rate: 120
+      pitch: 40

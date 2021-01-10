@@ -4,22 +4,23 @@ import time
 import paho.mqtt.client as mqtt
 import yaml
 
-from pydevice2mqqt.remote_devices import RemoteDevice, supported_devices
+from remote_devices import RemoteDevice, supported_devices
 
 
 def main():
     a = RemoteHassio("remote_config.yaml")
+    #
+    # if input("Delete remote_devices?") == "y":
+    #     a.delete_decices()
+    #     return
+    # else:
+    a.configure_devices()
 
-    if input("Delete remote_devices?") == "y":
-        a.delete_decices()
-    else:
-        a.configure_devices()
-
-    for device_name, device in a.get_devices().items():
-        if device_name == "AutoButton":
-            for i in range(10):
-                device.publish_state(i % 2 == 0)
-                time.sleep(1)
+    # for device_name, device in a.get_devices().items():
+    #     if device_name == "AutoButton":
+    #         for i in range(10):
+    #             device._publish_state(i % 2 == 0)
+    #             time.sleep(1)
 
     print("Enter loop!")
     a.loop_forever()
@@ -59,9 +60,9 @@ class RemoteHassio:
                 self._devices.append(
                     self._supported_devices[plattform](device_setting, mqtt_settings))
 
-        self._on_message_dict = {}
-        for topic_function_dict in [device.get_topic_functions() for device in self._devices]:
-            self._on_message_dict.update(topic_function_dict)
+        self._subscibed_channels_dict = {}
+        for topic_function_dict in [device.get_device_topics() for device in self._devices]:
+            self._subscibed_channels_dict.update(topic_function_dict)
 
         self._node_id = mqtt_settings["node_id"]
         self._node_channel = f'{mqtt_settings["operating_prefix"]}/{self._node_id}/#'
@@ -88,9 +89,14 @@ class RemoteHassio:
     def _on_message(self, client, userdata, msg):
 
         try:
-            self._on_message_dict[msg.topic](msg.payload.decode())
+            function = self._subscibed_channels_dict[msg.topic]
+            if function is not None:
+                print(f"Actor Message: {msg.topic} : {msg.payload.decode()}")
+                function(msg.payload.decode())
+            else:
+                print(f"Sensor Message: {msg.topic} : {msg.payload.decode()}")
         except KeyError:
-            print(f"unknown command channel: {msg.topic}")
+            print(f"Detect unsubscribed channel for this device: {msg.topic}")
 
     def configure_devices(self):
         for device in self._devices:  # type: RemoteDevice
