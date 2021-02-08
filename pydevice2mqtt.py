@@ -1,27 +1,21 @@
-import json
-import time
+#!/usr/bin/env python3
 
+import json
+import os
 import paho.mqtt.client as mqtt
 import yaml
+import sys
 
 from remote_devices import RemoteDevice, supported_devices
 
 
 def main():
-    a = RemoteHassio("remote_config.yaml")
-    #
-    # if input("Delete remote_devices?") == "y":
-    #     a.delete_decices()
-    #     return
-    # else:
+
+    dirname = os.path.dirname(__file__)
+    remote_config = os.path.join(dirname, "remote_config.yaml")
+
+    a = RemoteHassio(remote_config)
     a.configure_devices()
-
-    # for device_name, device in a.get_devices().items():
-    #     if device_name == "AutoButton":
-    #         for i in range(10):
-    #             device._publish_state(i % 2 == 0)
-    #             time.sleep(1)
-
     print("Enter loop!")
     a.loop_forever()
 
@@ -97,13 +91,16 @@ class RemoteHassio:
                 print(f"Sensor Message: {msg.topic} : {msg.payload.decode()}")
         except KeyError:
             print(f"Detect unsubscribed channel for this device: {msg.topic}")
+        except Exception as error:
+            print("Catching unhandled error inside of an device: {}".format(error))
+            sys.stderr.write("Error: {}".format(error))
 
     def configure_devices(self):
         for device in self._devices:  # type: RemoteDevice
             config = device.get_config()
             self._mqtt_client.publish(topic=config["topic"],
                                       payload=json.dumps(config["message"]),
-                                      retain=True,
+                                      retain=False,
                                       qos=1)
             for key, value in config["message"].items():
                 print(f'{key}: "{value}"')

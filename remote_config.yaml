@@ -4,11 +4,22 @@ mqtt_settings:
     user: outsider
     ip: "192.168.178.52"
     port: 1883
-    node_id: smartscreen
+    node_id: PrintscanServer
     discovery_prefix: homeassistant
     operating_prefix: pydevice2mqtt
+    logging: log
+
 
 remote_devices:
+
+#  SubprocessCall:
+#    - name: Scanning
+#      object_id: scanner
+#      component: switch
+#      exec_path: "E:\\Anwendungen\\Tools\\WinSCP\\WinSCP.exe"
+#      arguments: null
+#      looptime: 1
+
   RPI_GPIO:
     - name: SwitchState
       object_id: switch_state
@@ -17,8 +28,8 @@ remote_devices:
       inverted: true
 
   RPI_RGB:
-    - name: SwitchLight
-      object_id: switch_ligth
+    - name: SwitchLight2
+      object_id: switch_ligth2
       component: light
       pin_r: 17
       pin_g: 22
