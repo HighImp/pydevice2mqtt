@@ -2,39 +2,55 @@ import json
 import logging
 import time
 from collections import namedtuple, defaultdict
-from abc import abstractmethod, ABC
 
-# special_modules = list()
-# special_modules.append("subprocess")
-# special_modules.append("gpiozero")
-#
-# self._threading_module = __import__("threading", fromlist=["threading"])
-# self._subprocess_module = __import__("subprocess", fromlist=["subprocess"])
-#
-# try:
-#     import
+try:
+    import espeak
+except ImportError:
+    espeak = None
+
+try:
+    import gpiozero
+except ImportError:
+    gpiozero = None
 
 MQTTChannel = namedtuple("MQTTChannel", ["topic", "on_message"])
 
 
-class RemoteDevice(ABC):
+class RemoteDevice:
+    _BASE_CONFIG_REQ = {
+        "name": str,  # Display Name
+        "object_id": str  # Unique Object ID, will determine config and state topic
+    }
+
+    _CONFIG_REQ = {}
+
+    def get_uid(self) -> str:
+        """Get a ID that is unique under the node id
+
+        :return: Unique ID as string
+        """
+        return f"{self.__class__.__name__}_{self._config['object_id']}"
+
 
     def __init__(self, device_settings: dict, mqtt_settings: dict):
         self._operation_topics = defaultdict(MQTTChannel)
+
+        self._config: dict = {}
+        self._config["object_id"] = device_settings["object_id"]
         self._discovery_prefix = f"{mqtt_settings['discovery_prefix']}/" \
                                  f"{device_settings['device_class']}/" \
-                                 f"{mqtt_settings['node_id']}/" \
-                                 f"{device_settings['object_id']}/"
+                                 f"{mqtt_settings['bridge_name']}/" \
+                                 f"{self.get_uid()}/"
 
         self._operating_prefix = f"{mqtt_settings['operating_prefix']}/" \
-                                 f"{mqtt_settings['node_id']}/" \
-                                 f"{device_settings['object_id']}/"
+                                 f"{mqtt_settings['bridge_name']}/" \
+                                 f"{self.get_uid()}/"
 
         self._logging_channel = None
         if mqtt_settings["logging"] is not None:
             self._logging_channel = f"{mqtt_settings['operating_prefix']}/" \
-                                    f"{mqtt_settings['node_id']}/" \
-                                    f"{device_settings['object_id']}/" \
+                                    f"{mqtt_settings['bridge_name']}/" \
+                                    f"{self.get_uid()}/" \
                                     f"{mqtt_settings['logging']}/"
 
         self._config = {"topic": self._discovery_prefix + "config"}
@@ -46,7 +62,7 @@ class RemoteDevice(ABC):
         self._device_class = device_settings['device_class']
         self._config["name"] = device_settings["name"]
 
-        self._config["unique_id"] = device_settings["uid"]
+
 
         # connect self._publish to the function publish
         self._publish = mqtt_settings["f_publish"]
@@ -103,17 +119,17 @@ class RemoteDevice(ABC):
         """
         return self._config["name"]
 
-    def get_config(self) -> dict:
+    def get_discovery(self) -> tuple:
         """"
         Generate the config dictionary in MQTT Discovery stile
 
-        :return: auto discover dictionary with the discovery channel as key
+        :return: auto discover tuple with the discovery channel on index 0
         """
 
         auto_config = {**self._config, **{name: channel.topic for (name, channel) in self._operation_topics.items()}}
         topic = auto_config.pop("topic")
 
-        return {"topic": topic, "message": auto_config}
+        return topic, auto_config
 
     def get_device_topics(self) -> dict:
         """
@@ -125,11 +141,11 @@ class RemoteDevice(ABC):
         return dict([channel for name, channel in self._operation_topics.items()])
 
     @classmethod
-    @abstractmethod
     def get_config_req(cls) -> dict:
         """Returns a dict with the required keys and the expected data types as values
         :return: dict
         """
+        return cls._CONFIG_REQ | cls._BASE_CONFIG_REQ
 
 
 def supported_device_classes() -> dict:
@@ -142,8 +158,17 @@ def supported_device_classes() -> dict:
 
     import sys
     import inspect
+
+    # all classes in this module
     cls_members = inspect.getmembers(sys.modules[__name__], inspect.isclass)
-    return dict((name, obj) for name, obj in cls_members if name != "RemoteDevice")
+
+    # only classes with base class Remote Device
+    supported_devices = {}
+    for class_name, class_obj in cls_members:
+        if RemoteDevice in inspect.getmro(class_obj) and class_obj != RemoteDevice:
+            supported_devices[class_name] = class_obj
+
+    return supported_devices
 
 
 class ArbitrarySensor(RemoteDevice):
@@ -187,15 +212,8 @@ class ArbitrarySensor(RemoteDevice):
                      message=json.dumps({"value": value}))
         self._last_value = value
 
-    @classmethod
-    def get_config_req(cls) -> dict:
-        """Returns a dict with the required keys and the expected data types as values
-        :return: dict
-        """
-        return cls._CONFIG_REQ
 
-
-class RPI_GPIO(RemoteDevice):
+class RpiGpio(RemoteDevice):
     """
     Raspberry PI Remote Gpio device
     Remote device to configure and control GPIOs of an Raspberry Pi via MQTT and
@@ -211,11 +229,9 @@ class RPI_GPIO(RemoteDevice):
     }
 
     def __init__(self, device_settings, mqtt_settings):
-        super(RPI_GPIO, self).__init__(device_settings=device_settings, mqtt_settings=mqtt_settings)
+        super(RpiGpio, self).__init__(device_settings=device_settings, mqtt_settings=mqtt_settings)
 
-        try:
-            import gpiozero
-        except ImportError:
+        if gpiozero is None:
             err_msg = "Could not import gpiozero. Unable to create this remote device!"
             self._log_remote(err_msg)
             raise ImportError(err_msg)
@@ -255,15 +271,8 @@ class RPI_GPIO(RemoteDevice):
         self._update(channel_name="state_topic",
                      message=target_state)
 
-    @classmethod
-    def get_config_req(cls) -> dict:
-        """Returns a dict with the required keys and the expected data types as values
-        :return: dict
-        """
-        return cls._CONFIG_REQ
 
-
-class RPI_RGB(RemoteDevice):
+class RpiRgb(RemoteDevice):
     _CONFIG_REQ = {
         "name": str,  # Display Name
         "device_class": str,  # binary_sensor or switch
@@ -277,11 +286,9 @@ class RPI_RGB(RemoteDevice):
 
     def __init__(self, device_settings, mqtt_settings):
 
-        super(RPI_RGB, self).__init__(device_settings=device_settings, mqtt_settings=mqtt_settings)
+        super(RpiRgb, self).__init__(device_settings=device_settings, mqtt_settings=mqtt_settings)
 
-        try:
-            import gpiozero
-        except ImportError:
+        if gpiozero is None:
             err_msg = "Could not import gpiozero. Unable to create this remote device!"
             self._log_remote(err_msg)
             raise ImportError(err_msg)
@@ -327,7 +334,6 @@ class RPI_RGB(RemoteDevice):
                 rgb_tuple = (color["r"], color["g"], color["b"])
                 self._gpiozero_device.value = rgb_tuple
 
-
         except KeyError:
             self._log_remote(f"Unsupported command structure: {message}")
 
@@ -339,13 +345,6 @@ class RPI_RGB(RemoteDevice):
         message = f"{rgb[0]}, {rgb[1]}, {rgb[2]}"
         self._update(channel_name="rgb_state_topic",
                      message=message)
-
-    @classmethod
-    def get_config_req(cls) -> dict:
-        """Returns a dict with the required keys and the expected data types as values
-        :return: dict
-        """
-        return cls._CONFIG_REQ
 
 
 class ESpeakTTS(RemoteDevice):
@@ -361,9 +360,7 @@ class ESpeakTTS(RemoteDevice):
     def __init__(self, device_settings, mqtt_settings):
         super(ESpeakTTS, self).__init__(device_settings=device_settings, mqtt_settings=mqtt_settings)
 
-        try:
-            self._espeak_module = __import__("espeak", fromlist=["espeak"])
-        except ImportError:
+        if espeak is None:
             err_msg = "Could not import espeak. Unable to create this remote device!"
             self._log_remote(err_msg)
             raise ImportError(err_msg)
@@ -374,12 +371,12 @@ class ESpeakTTS(RemoteDevice):
                           sub_topic="say",
                           on_message=self._on_say)
 
-        parameter = self._espeak_module.espeak.Parameter
-        self._espeak_module.espeak.set_voice(device_settings["voice"])
-        self._espeak_module.espeak.set_parameter(parameter.Rate, device_settings["rate"])
-        self._espeak_module.espeak.set_parameter(parameter.Pitch, device_settings["pitch"])
+        parameter = espeak.espeak.Parameter
+        espeak.espeak.set_voice(device_settings["voice"])
+        espeak.espeak.set_parameter(parameter.Rate, device_settings["rate"])
+        espeak.espeak.set_parameter(parameter.Pitch, device_settings["pitch"])
 
-        self._espeak_module.espeak.synth("Sprachsyntheese ist activ!")
+        espeak.espeak.synth("Sprachsyntheese ist activ!")
 
     def _on_say(self, msg):
 
@@ -388,16 +385,9 @@ class ESpeakTTS(RemoteDevice):
                 text = msg
             else:
                 text = str(msg["text"])
-            self._espeak_module.espeak.synth(text)
+            espeak.espeak.synth(text)
         except (KeyError, TypeError):
             self._log_remote("No text key provided in message!")
-
-    @classmethod
-    def get_config_req(cls) -> dict:
-        """Returns a dict with the required keys and the expected data types as values
-        :return: dict
-        """
-        return cls._CONFIG_REQ
 
 
 class SubprocessCall(RemoteDevice):
@@ -500,10 +490,3 @@ class SubprocessCall(RemoteDevice):
                 return
 
             self._running_process.kill()
-
-    @classmethod
-    def get_config_req(cls) -> dict:
-        """Returns a dict with the required keys and the expected data types as values
-        :return: dict
-        """
-        return cls._CONFIG_REQ

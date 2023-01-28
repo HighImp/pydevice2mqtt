@@ -9,38 +9,38 @@ from typing import List, Dict
 import paho.mqtt.client as mqtt
 import yaml
 
-from remote_devices import RemoteDevice, supported_device_classes
+from pydevice2mqtt.remote_devices import RemoteDevice, supported_device_classes
 
 
-def main():
-    logging.basicConfig(filename='All.log', filemode='w', level=logging.DEBUG)
-    dirname = os.path.dirname(__file__)
+# def main():
+#     logging.basicConfig(filename='../../All.log', filemode='w', level=logging.DEBUG)
+#     dirname = os.path.dirname(__file__)
+#
+#     new_device: dict = {"ArbitrarySensor": [
+#         {"name": "Batteriestrom1",
+#          "device_class": "current",
+#          "unit_of_measurement": "A",
+#          "object_id": "BMP_STR1"},
+#         {"name": "Batteriestrom2",
+#          "device_class": "current",
+#          "unit_of_measurement": "A",
+#          "object_id": "BMP_STR2"},
+#         {"name": "Batteriestrom3",
+#          "device_class": "current",
+#          "unit_of_measurement": "A",
+#          "object_id": "BMP_STR3"}
+#     ]}
+#
+#     remote_config = os.path.join(dirname, "../../test/remote_config.yaml")
+#     DeviceBridge.update_config(devices=new_device, config_file=Path("../../test/remote_config.yaml"), force_update=True)
+#
+#     a = DeviceBridge(remote_config)
+#     a.delete_devices()
+#     logging.info("Enter loop!")
+#     a.loop()
 
-    new_device: dict = {"ArbitrarySensor": [
-        {"name": "Batteriestrom1",
-         "device_class": "current",
-         "unit_of_measurement": "A",
-         "object_id": "BMP_STR1"},
-        {"name": "Batteriestrom2",
-         "device_class": "current",
-         "unit_of_measurement": "A",
-         "object_id": "BMP_STR2"},
-        {"name": "Batteriestrom3",
-         "device_class": "current",
-         "unit_of_measurement": "A",
-         "object_id": "BMP_STR3"}
-    ]}
 
-    remote_config = os.path.join(dirname, "remote_config.yaml")
-    RemoteHassio.update_config(devices=new_device, config_file=Path("remote_config.yaml"), force_update=True)
-
-    a = RemoteHassio(remote_config)
-    a.delete_devices()
-    logging.info("Enter loop!")
-    a.loop()
-
-
-class RemoteHassio:
+class DeviceBridge:
     _supported_device_classes = supported_device_classes()
 
     @classmethod
@@ -56,7 +56,7 @@ class RemoteHassio:
         :param devices: Configuration values for new items (see remote_devices.py for supported devices)
         :param config_file: target file name to create or update
         :param mqtt_settings: all necessary mqtt values
-        (pw, user, ip, port, node_id, discovery_prefix, operating_prefix, loggin)
+        (pw, user, ip, port, bridge_name, discovery_prefix, operating_prefix, loggin)
         :param force_update: allow updates on MQTT and existing Devices
         :return: Amount of added devices
 
@@ -67,7 +67,7 @@ class RemoteHassio:
         if config_file.is_file() and mqtt_settings is not None and not force_update:
             raise ValueError("MQTT Settings can not be updated for existing file.")
 
-        complete_config: dict = {"remote_devices": {}}
+        complete_config: dict = {"remote_devices": {}, "mqtt_settings": {}}
 
         if config_file.is_file():
             with open(config_file, "r") as config_stream:
@@ -77,10 +77,10 @@ class RemoteHassio:
                 complete_config |= mqtt_settings
 
         elif mqtt_settings is not None:
-            needed_mqtt_keys = ["ip", "port", "node_id", "discovery_prefix", "operating_prefix"]
+            needed_mqtt_keys = ["ip", "port", "bridge_name", "discovery_prefix", "operating_prefix"]
             assert all([needed_key in mqtt_settings.keys() for needed_key in needed_mqtt_keys]), \
                 "Missing info in mqtt settings"
-            complete_config |= mqtt_settings
+            complete_config["mqtt_settings"] |= mqtt_settings
 
         else:
             raise ValueError("MQTT Settings have to be set for new file creation!")
@@ -111,17 +111,16 @@ class RemoteHassio:
         with open(config_file, "w") as config_stream:
             yaml.safe_dump(complete_config, config_stream)
 
-    def __init__(self, config_file):
+    def __init__(self, config_file: Path):
 
         super().__init__()
-        with open(config_file, "r") as file:
+        with Path(config_file).open("r") as file:
             remote_description = yaml.load(file, yaml.FullLoader)
 
         mqtt_settings = remote_description["mqtt_settings"]
         remote_devices = remote_description["remote_devices"]
 
-        self._devices = list()
-        self._device_uids = list()
+        self._devices = dict()
         self._mqtt_client = mqtt.Client()
         self._mqtt_client.on_connect = self._on_connect
         self._mqtt_client.on_message = self._on_message
@@ -135,28 +134,28 @@ class RemoteHassio:
         mqtt_settings["f_publish"] = self._mqtt_client.publish
 
         assert set(remote_devices.keys()).issubset(set(self._supported_device_classes.keys()))
-        for device_class, devices in remote_devices.items():
-            for device_setting in devices:
-                device_setting["uid"] = self._get_uid(device_setting, mqtt_settings)
-                self._devices.append(
-                    self._supported_device_classes[device_class](device_setting, mqtt_settings))
+        for remote_device_class, devices in remote_devices.items():
+            for device_settings in devices:
+                device_settings["uid"] = self._get_uid(remote_device_class=remote_device_class,
+                                                       device_settings=device_settings,
+                                                       mqtt_settings=mqtt_settings)
+                self._devices[device_settings["uid"]] = self._supported_device_classes[remote_device_class](
+                    device_settings, mqtt_settings)
 
-        self._subscibed_channels_dict = {}
-        for topic_function_dict in [device.get_device_topics() for device in self._devices]:
-            self._subscibed_channels_dict.update(topic_function_dict)
+        self._subscribed_channels_dict = {}
+        for topic_function_dict in [device.get_device_topics() for device in self._devices.values()]:
+            self._subscribed_channels_dict.update(topic_function_dict)
 
-        self._node_id = mqtt_settings["node_id"]
-        self._node_channel = f'{mqtt_settings["operating_prefix"]}/{self._node_id}/#'
+        self._bridge_name = mqtt_settings["bridge_name"]
+        self._node_channel = f'{mqtt_settings["operating_prefix"]}/{self._bridge_name}/#'
 
-    def _get_uid(self, device_settings, mqtt_settings):
-        device_class = device_settings['device_class']
-        node_id = mqtt_settings['node_id']
+    def _get_uid(self, remote_device_class: str, device_settings: dict, mqtt_settings: dict):
+        bridge_name = mqtt_settings['bridge_name']
         object_id = device_settings['object_id']
 
-        uid = f"{node_id}_{object_id}_{device_class}"
-        if uid in self._device_uids:
+        uid = f"{bridge_name}_{remote_device_class}_{object_id}"
+        if uid in self._devices.keys():
             raise ValueError(f"UID {uid} is already taken!")
-        self._device_uids.append(uid)
         return uid
 
     def loop(self):
@@ -182,7 +181,7 @@ class RemoteHassio:
     def _on_message(self, client, userdata, msg):
 
         try:
-            function = self._subscibed_channels_dict[msg.topic]
+            function = self._subscribed_channels_dict[msg.topic]
             if function is not None:
                 logging.debug(f"Actor Message: {msg.topic} : {msg.payload.decode()}")
                 function(msg.payload.decode())
@@ -194,26 +193,33 @@ class RemoteHassio:
             logging.error(f"Catching unhandled error inside of an device: {error}")
 
     def configure_devices(self):
-        for device in self._devices:  # type: RemoteDevice
-            print(device)
-            config = device.get_config()
-            print(config)
-            self._mqtt_client.publish(topic=config["topic"],
-                                      payload=json.dumps(config["message"]),
+        """Register Bridge Devices by write the config in HASSIO style to the discovery channel
+        """
+        for uid, device in self._devices.items():
+            logging.debug(f"Configure: {uid}")
+            discover_info = device.get_discovery()
+            self._mqtt_client.publish(topic=discover_info[0],
+                                      payload=json.dumps(discover_info[1]),
                                       retain=False,
                                       qos=1)
-            for key, value in config["message"].items():
+            for key, value in discover_info["message"].items():
                 logging.debug(f'{key}: "{value}"')
 
     def delete_devices(self):
-        for device in self._devices:  # type: RemoteDevice
-            config = device.get_config()
-            self._mqtt_client.publish(topic=config["topic"],
+        """Unregister all devices by flushing the Discovery Channel
+        """
+        for uid, device in self._devices.items():  # type: RemoteDevice
+            logging.debug(f"Unlink: {uid}")
+            discover_info = device.get_discovery()
+            self._mqtt_client.publish(topic=discover_info[0],
                                       payload="")
 
     def get_devices(self):
-        return {device.get_name(): device for device in self._devices}
-
-
-if __name__ == '__main__':
-    main()
+        """Return a dict with all registered devices
+        """
+        return {uid: device for uid, device in self._devices.items()}
+    #
+    # def get_mqtt_client(self) -> mqtt.Client:
+    #     """Return the MQTT Client directly, for debug and test reasons
+    #     """
+    #     return self._mqtt_client

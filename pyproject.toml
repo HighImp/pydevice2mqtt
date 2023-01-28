@@ -1,0 +1,35 @@
+[project]
+    name = "pydevice2mqtt"
+    description = "tbd"
+    version = "0.0.1.dev0"
+    readme = "README.md"
+    requires-python = ">=3.7"
+#    authors = [
+#        { name = "HighZ", email = "" }
+#    ]
+
+    dependencies = [
+        "paho-mqtt",
+        "pyyaml"
+    ]
+
+[project.scripts]
+    flit = "flit:main"
+
+
+[project.optional-dependencies]
+    test = [
+        "pylint ~=2.14.0",
+        "pytest-cov ~=4.0.0",
+        "pytest-mock ~=3.10.0"
+    ]
+
+[build-system]
+    build-backend = "flit_core.buildapi"
+    requires = ["flit_core >=3.8.0,<4"]
+
+[tool.pytest.ini_options]
+    addopts = "--cov --cov-report html --cov-report term-missing --cov-fail-under 67"
+
+[tool.coverage.run]
+    source = ["src"]
