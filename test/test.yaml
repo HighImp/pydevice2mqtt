@@ -1,0 +1,15 @@
+mqtt_settings:
+  bridge_name: TestNode
+  discovery_prefix: homeassistant
+  ip: test
+  logging: log
+  operating_prefix: pydevice2mqtt
+  port: 1883
+  pw: secret
+  user: user
+remote_devices:
+  ArbitrarySensor:
+  - device_class: Test_String
+    name: Test_String
+    object_id: Test_String
+    unit_of_measurement: Test_String
