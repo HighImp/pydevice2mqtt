@@ -185,8 +185,7 @@ class DeviceBridge:
                                       payload=json.dumps(discover_info[1]),
                                       retain=False,
                                       qos=1)
-            for key, value in discover_info["message"].items():
-                logging.debug(f'{key}: "{value}"')
+            logging.debug(f'{discover_info[0]}: "{discover_info[1]}"')
 
     def delete_devices(self):
         """Unregister all devices by flushing the Discovery Channel

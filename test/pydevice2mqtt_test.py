@@ -92,6 +92,8 @@ def test_mqtt_channels(mocker):
         assert str(discover_topic).endswith("config")
         assert str(discover_info["state_topic"]).startswith(EXAMPLE_MQTT_SETTINGS["operating_prefix"])
         assert str(discover_info["state_topic"]).endswith("state")
+    my_bridge.configure_devices()
+
     assert mqtt_client.called
 
 def test_arbitrary_sensor(mocker):
