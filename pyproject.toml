@@ -1,17 +1,20 @@
 [project]
     name = "pydevice2mqtt"
-    description = "tbd"
-    version = "0.0.1.dev0"
+    description = '''
+    This project provides a simplified control of devices via MQTT.
+    Supports the Hasso auto configuration protocol
+    '''
+    license = {file = "LICENSE"}
+    version = "0.1.0"
     readme = "README.md"
-    requires-python = ">=3.7"
-#    authors = [
-#        { name = "HighZ", email = "" }
-#    ]
-
+    requires-python = ">=3.9"
+    authors = [{name="HighImp", email="AnyHighZ@gmail.com"}]
     dependencies = [
         "paho-mqtt",
         "pyyaml"
     ]
+    keywords = ["hassio","mqtt","homeassistent","homeautomation"]
+    repository = "https://github.com/HighImp/pydevice2mqtt"
 
 [project.scripts]
     flit = "flit:main"
