@@ -17,7 +17,7 @@ class DeviceBridge:
 
     @classmethod
     def update_config(cls,
-                      devices: Dict[str, List[dict]] = None,
+                      devices: Dict[str, Dict[str, dict]] = None,
                       config_file: Path = "mqtt_dev_config.yaml",
                       mqtt_settings: dict = None,
                       force_update: bool = False):
@@ -44,7 +44,6 @@ class DeviceBridge:
         if config_file.is_file():
             with open(config_file, "r") as config_stream:
                 complete_config = yaml.load(config_stream, yaml.SafeLoader)
-
             if force_update and mqtt_settings:
                 complete_config |= mqtt_settings
 
@@ -64,27 +63,30 @@ class DeviceBridge:
             raise ValueError("MQTT Settings have to be set for new file creation!")
 
         # check if all devices provide the necessary info
-        for device_class_name, device_info_list in devices.items():
+        for device_class_name, device_info_dict in devices.items():
             try:
                 device_class: RemoteDevice = cls._supported_device_classes[device_class_name]
             except KeyError as err:
                 raise AttributeError(f"Device {device_class_name} not supported") from err
 
-            for device_info in device_info_list:
+            for object_id, device_info in device_info_dict.items():
                 for key, value_type in device_class.get_config_req().items():
                     try:
-                        assert type(device_info[key]) == value_type
-                    except [KeyError, AssertionError] as err:
-                        raise AttributeError("The Device info did not provide all necessary information") from err
+                        assert isinstance(device_info[key], value_type)
+                    except (KeyError, AssertionError) as err:
+                        raise ValueError(f"The Device info is incomplete or provide wrong type ({key} {value_type})") from err
 
-                if device_class_name in complete_config["remote_devices"].keys() and not force_update:
-                    # check for duplicates
-                    assert all(existing_device["object_id"] != device_info["object_id"]
-                               for existing_device in complete_config["remote_devices"][device_class_name]), \
-                        f"Found existing Device, updating {device_class_name} " \
-                        f"with object_id: {device_info['object_id']} is forbidden!"
+            # all infos correct, update dict
+            if device_class_name in complete_config["remote_devices"].keys():
+                if not force_update:
+                    assert all(devices[device_class_name].keys()) not in complete_config["remote_devices"][
+                        device_class_name].keys(), \
+                        f"Found existing Device, updating {device_class_name} is forbidden!"
+                # update, no matter what
+                complete_config["remote_devices"][device_class_name] |= devices[device_class_name]
 
-        complete_config["remote_devices"] |= devices
+            else:  # device class not known, just copy the dict
+                complete_config["remote_devices"][device_class_name] = devices[device_class_name]
 
         with open(config_file, "w") as config_stream:
             yaml.safe_dump(complete_config, config_stream)
@@ -117,14 +119,12 @@ class DeviceBridge:
 
         assert set(remote_devices.keys()).issubset(set(self._supported_device_classes.keys()))
         for remote_device_class, devices in remote_devices.items():
-            for device_settings in devices:
-                new_device: RemoteDevice = self._supported_device_classes[remote_device_class](device_settings, mqtt_settings)
+            for object_id, device_settings in devices.items():
+                device_settings["object_id"] = object_id
+                new_device: RemoteDevice = self._supported_device_classes[remote_device_class](device_settings,
+                                                                                               mqtt_settings)
                 new_device_uid = new_device.get_uid()
-                if new_device_uid not in self._devices.keys():
-                    self._devices[new_device_uid] = new_device
-                else:
-                    raise ValueError(f"Device with uid: {new_device_uid} is already taken, "
-                                     f"change the Object ID of one of the entries in config!")
+                self._devices[new_device_uid] = new_device
 
         self._subscribed_channels_dict = {}
         for topic_function_dict in [device.get_device_topics() for device in self._devices.values()]:
@@ -132,14 +132,6 @@ class DeviceBridge:
 
         self._bridge_name = mqtt_settings["bridge_name"]
         self._node_channel = f'{mqtt_settings["operating_prefix"]}/{self._bridge_name}/#'
-
-    def _get_uid(self, remote_device_class: str, device_settings: dict):
-        object_id = device_settings['object_id']
-
-        uid = f"{remote_device_class}_{object_id}"
-        if uid in self._devices.keys():
-            raise ValueError(f"UID {uid} is already taken!")
-        return uid
 
     def loop(self):
         self._mqtt_client.loop_forever()
@@ -196,7 +188,7 @@ class DeviceBridge:
             self._mqtt_client.publish(topic=discover_info[0],
                                       payload="")
 
-    def get_devices(self):
+    def get_devices(self) -> Dict[str, RemoteDevice]:
         """Return a dict with all registered devices
         """
         return {uid: device for uid, device in self._devices.items()}

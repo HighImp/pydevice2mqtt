@@ -40,22 +40,24 @@ def create_config_file(path: Path, device_classes: dict = None) -> None:
         for entry_name, entry_type in config_requirement.items():
             device_config_dict[entry_name] = EXAMPLE_DATA[entry_type]
 
-        all_devices[classname] = [device_config_dict]
+        all_devices[classname] = {EXAMPLE_DATA[str]: device_config_dict}
 
     pydevice2mqtt.DeviceBridge.update_config(devices=all_devices,
                                              mqtt_settings=EXAMPLE_MQTT_SETTINGS,
                                              config_file=path, force_update=False)
 
 
-def create_device_bridge(mocked_module, device_classes: dict = None):
+def create_device_bridge(mocked_module, device_classes: dict = None, new_config: bool = True):
     """
     Create a mocked device bridge
     :param mocked_module: mocked pydevice2mqtt module
     :param device_classes: dict of classes to create ({<classname>:<classobj>})
+    :param new_config: create a new config file and delete existing
     :return: mocked DeviceBridge Instance
     """
     test_config_file = Path("test.yaml")
-    create_config_file(path=test_config_file, device_classes=device_classes)
+    if new_config:
+        create_config_file(path=test_config_file, device_classes=device_classes)
     return mocked_module.DeviceBridge(config_file=test_config_file)
 
 
@@ -96,6 +98,7 @@ def test_mqtt_channels(mocker):
 
     assert mqtt_client.called
 
+
 def test_arbitrary_sensor(mocker):
     import pydevice2mqtt
 
@@ -120,6 +123,47 @@ def test_arbitrary_sensor(mocker):
     assert len(mqtt_client.mock_calls) == 4
     set_value_call_kwargs = mqtt_client.mock_calls[-1].kwargs
     assert set_value_call_kwargs["payload"] == '{"value": 1}'
+
+
+def test_additional_config(mocker):
+    import pydevice2mqtt
+
+    mocker.patch("pydevice2mqtt.pydevice2mqtt.mqtt.Client")
+    mocker.patch("pydevice2mqtt.remote_devices.espeak")
+    mocker.patch("pydevice2mqtt.remote_devices.gpiozero")
+
+    test_config_file = Path("test.yaml")
+    device_class = {"RpiGpio": pydevice2mqtt.remote_devices.RpiGpio}
+    create_config_file(test_config_file, device_classes=device_class)
+
+    device_config: dict = {"RpiGpio": {
+        "GPIO_PIN4":
+            {
+                "name": "MyPin",  # Display Name
+                "device_class": "switch",  # binary_sensor or switch
+                "pin": 4,  # Pin Nr according to gpiozero
+                "inverted": False,  # Device side inverter on/off (both directions)
+                "additional": "unrequired_info"
+            }}}
+
+    device_config2: dict = {"RpiGpio": {
+        "GPIO_PIN5":
+            {
+                "name": "MyPin",  # Display Name
+                "device_class": "switch",  # binary_sensor or switch
+                "pin": 4,  # Pin Nr according to gpiozero
+                "inverted": False,  # Device side inverter on/off (both directions)
+                "opt_attr": {"gen_attr": "unrequired_info"}  # <<<< generic information, unrelated to the device
+            }}}
+
+    pydevice2mqtt.DeviceBridge.update_config(devices=device_config, config_file=test_config_file)
+    pydevice2mqtt.DeviceBridge.update_config(devices=device_config2, config_file=test_config_file)
+    my_bridge: pydevice2mqtt.DeviceBridge = create_device_bridge(mocked_module=pydevice2mqtt,
+                                                                 new_config=False)
+    devices = my_bridge.get_devices()
+    assert len(devices) == 3
+
+    assert devices["RpiGpio_GPIO_PIN5"].get_discovery()[1]["gen_attr"] == "unrequired_info"
 
 
 if __name__ == "__main__":

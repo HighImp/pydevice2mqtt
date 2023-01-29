@@ -19,12 +19,9 @@ MQTTChannel = namedtuple("MQTTChannel", ["topic", "on_message"])
 class RemoteDevice:
     _BASE_CONFIG_REQ = {
         "name": str,  # Display Name
-        "object_id": str  # Unique Object ID, will determine config and state topic
     }
 
     _CONFIG_REQ = {}
-
-
 
     def __init__(self, device_settings: dict, mqtt_settings: dict):
         self._operation_topics = defaultdict(MQTTChannel)
@@ -56,7 +53,18 @@ class RemoteDevice:
         self._device_class = device_settings['device_class']
         self._config["name"] = device_settings["name"]
 
-
+        # some devices may need special attributes to appear in a special manner in hassio,
+        # there are too many to handle all of them, so add them via generic dict from config on demand
+        if "opt_attr" in device_settings.keys():
+            attribute = None
+            try:
+                for attribute, value in device_settings["opt_attr"].items():
+                    assert attribute not in self._config.keys()
+                    self._config[attribute] = value
+            except (TypeError, AttributeError, KeyError):
+                logging.warning("Could not apply optional attributes!")
+            except AssertionError:
+                logging.warning(f"Could not overwrite a required item with the optional dict ({attribute})")
 
         # connect self._publish to the function publish
         self._publish = mqtt_settings["f_publish"]
@@ -184,10 +192,8 @@ class ArbitrarySensor(RemoteDevice):
     """
 
     _CONFIG_REQ = {
-        "name": str,  # Display Name
         "device_class": str,  # Sensor Type (https://www.home-assistant.io/integrations/sensor#device-class)
-        "unit_of_measurement": str,  # Unit of measurement (W,C,V,A...)
-        "object_id": str  # Unique Object ID, will determine config and state topic
+        "unit_of_measurement": str  # ,  # Unit of measurement (W,C,V,A...)
     }
 
     def __init__(self, device_settings: dict, mqtt_settings: dict):
@@ -228,9 +234,7 @@ class RpiGpio(RemoteDevice):
     """
 
     _CONFIG_REQ = {
-        "name": str,  # Display Name
         "device_class": str,  # binary_sensor or switch
-        "object_id": str,  # Unique Object ID, will determine config and state topic
         "pin": int,  # Pin Nr according to gpiozero
         "inverted": bool  # Device side inverter on/off (both directions)
     }
@@ -281,9 +285,7 @@ class RpiGpio(RemoteDevice):
 
 class RpiRgb(RemoteDevice):
     _CONFIG_REQ = {
-        "name": str,  # Display Name
         "device_class": str,  # binary_sensor or switch
-        "object_id": str,  # Unique Object ID, will determine config and state topic
         "pin_r": int,  # Red Pin Nr according to gpiozero
         "pin_g": int,  # Green Pin Nr according to gpiozero
         "pin_b": int,  # Blue Pin Nr according to gpiozero
@@ -356,9 +358,7 @@ class RpiRgb(RemoteDevice):
 
 class ESpeakTTS(RemoteDevice):
     _CONFIG_REQ = {
-        "name": str,  # Display Name
         "device_class": str,  # Should always be tts
-        "object_id": str,  # Unique Object ID, will determine config and state topic
         "voice": str,  # ESpeak voice set (like 'mb-de6')
         "rate": int,  # Voice Speed
         "pitch": int,  # Voice Pitch
@@ -408,9 +408,7 @@ class SubprocessCall(RemoteDevice):
     """
 
     _CONFIG_REQ = {
-        "name": str,  # Display Name
         "device_class": str,  # should be 'switch'
-        "object_id": str,  # Unique Object ID, will determine config and state topic
         "exec_path": str,  # Path app or file to execute (i.E. python.exe)
         "arguments": str,  # space separated list of arguments ("--version -E")
         "looptime": int  # polling time in seconds to check if the call is done
