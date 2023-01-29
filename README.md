@@ -1,7 +1,7 @@
 # pydevice2mqtt
 
-Python class library for generating and sending data to the Home Assistant via
-MQTT (AutoDiscovery) of data from devices
+Python class library for device handling via MQTT. 
+All devices supports the auto discovery and configuration of Hassio
 
 ## Build and Install
 ### build wheel: 
@@ -12,7 +12,6 @@ MQTT (AutoDiscovery) of data from devices
 
 ### install wheel:
        
-    # inside dist folder:
     pip install pydevice2mqtt
 
 ## Usage
