@@ -15,7 +15,7 @@ EXAMPLE_MQTT_SETTINGS = {
     "bridge_name": "TestNode",
     "discovery_prefix": "homeassistant",
     "operating_prefix": "pydevice2mqtt",
-    "logging": "log"}
+    "logging": "True"}
 
 EXAMPLE_DATA = {str: "Test_String", int: 42, bool: True}
 
@@ -107,9 +107,12 @@ def test_arbitrary_sensor(mocker):
                                                                  device_classes=device_class)
 
     sensor_instance: pydevice2mqtt.remote_devices.ArbitrarySensor
-    expected_uid = f"{EXAMPLE_MQTT_SETTINGS['bridge_name']}_ArbitrarySensor_{EXAMPLE_DATA[str]}"
+    expected_uid = f"ArbitrarySensor_{EXAMPLE_DATA[str]}"
 
     sensor_instance = my_bridge.get_devices()[expected_uid]
+    assert sensor_instance.get_uid() == expected_uid
+    assert sensor_instance.get_object_id() == EXAMPLE_DATA[str]
+    assert sensor_instance.get_name() == EXAMPLE_DATA[str]
     assert len(mqtt_client.mock_calls) == 3
     sensor_instance.set_value(1)
     assert len(mqtt_client.mock_calls) == 4

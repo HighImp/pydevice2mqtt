@@ -12,34 +12,6 @@ import yaml
 from pydevice2mqtt.remote_devices import RemoteDevice, supported_device_classes
 
 
-# def main():
-#     logging.basicConfig(filename='../../All.log', filemode='w', level=logging.DEBUG)
-#     dirname = os.path.dirname(__file__)
-#
-#     new_device: dict = {"ArbitrarySensor": [
-#         {"name": "Batteriestrom1",
-#          "device_class": "current",
-#          "unit_of_measurement": "A",
-#          "object_id": "BMP_STR1"},
-#         {"name": "Batteriestrom2",
-#          "device_class": "current",
-#          "unit_of_measurement": "A",
-#          "object_id": "BMP_STR2"},
-#         {"name": "Batteriestrom3",
-#          "device_class": "current",
-#          "unit_of_measurement": "A",
-#          "object_id": "BMP_STR3"}
-#     ]}
-#
-#     remote_config = os.path.join(dirname, "../../test/remote_config.yaml")
-#     DeviceBridge.update_config(devices=new_device, config_file=Path("../../test/remote_config.yaml"), force_update=True)
-#
-#     a = DeviceBridge(remote_config)
-#     a.delete_devices()
-#     logging.info("Enter loop!")
-#     a.loop()
-
-
 class DeviceBridge:
     _supported_device_classes = supported_device_classes()
 
@@ -146,11 +118,13 @@ class DeviceBridge:
         assert set(remote_devices.keys()).issubset(set(self._supported_device_classes.keys()))
         for remote_device_class, devices in remote_devices.items():
             for device_settings in devices:
-                device_settings["uid"] = self._get_uid(remote_device_class=remote_device_class,
-                                                       device_settings=device_settings,
-                                                       mqtt_settings=mqtt_settings)
-                self._devices[device_settings["uid"]] = self._supported_device_classes[remote_device_class](
-                    device_settings, mqtt_settings)
+                new_device: RemoteDevice = self._supported_device_classes[remote_device_class](device_settings, mqtt_settings)
+                new_device_uid = new_device.get_uid()
+                if new_device_uid not in self._devices.keys():
+                    self._devices[new_device_uid] = new_device
+                else:
+                    raise ValueError(f"Device with uid: {new_device_uid} is already taken, "
+                                     f"change the Object ID of one of the entries in config!")
 
         self._subscribed_channels_dict = {}
         for topic_function_dict in [device.get_device_topics() for device in self._devices.values()]:
@@ -159,11 +133,10 @@ class DeviceBridge:
         self._bridge_name = mqtt_settings["bridge_name"]
         self._node_channel = f'{mqtt_settings["operating_prefix"]}/{self._bridge_name}/#'
 
-    def _get_uid(self, remote_device_class: str, device_settings: dict, mqtt_settings: dict):
-        bridge_name = mqtt_settings['bridge_name']
+    def _get_uid(self, remote_device_class: str, device_settings: dict):
         object_id = device_settings['object_id']
 
-        uid = f"{bridge_name}_{remote_device_class}_{object_id}"
+        uid = f"{remote_device_class}_{object_id}"
         if uid in self._devices.keys():
             raise ValueError(f"UID {uid} is already taken!")
         return uid
@@ -228,8 +201,3 @@ class DeviceBridge:
         """Return a dict with all registered devices
         """
         return {uid: device for uid, device in self._devices.items()}
-    #
-    # def get_mqtt_client(self) -> mqtt.Client:
-    #     """Return the MQTT Client directly, for debug and test reasons
-    #     """
-    #     return self._mqtt_client

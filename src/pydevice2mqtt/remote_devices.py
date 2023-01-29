@@ -24,12 +24,6 @@ class RemoteDevice:
 
     _CONFIG_REQ = {}
 
-    def get_uid(self) -> str:
-        """Get a ID that is unique under the node id
-
-        :return: Unique ID as string
-        """
-        return f"{self.__class__.__name__}_{self._config['object_id']}"
 
 
     def __init__(self, device_settings: dict, mqtt_settings: dict):
@@ -51,9 +45,9 @@ class RemoteDevice:
             self._logging_channel = f"{mqtt_settings['operating_prefix']}/" \
                                     f"{mqtt_settings['bridge_name']}/" \
                                     f"{self.get_uid()}/" \
-                                    f"log/"
+                                    f"log"
 
-        self._config = {"topic": self._discovery_prefix + "config"}
+        self._config["topic"] = f"{self._discovery_prefix}config"
 
         self._add_channel(channel_name="state_topic",
                           sub_topic="state",
@@ -110,6 +104,19 @@ class RemoteDevice:
         """
 
         self._operation_topics[channel_name] = MQTTChannel(self._operating_prefix + sub_topic, on_message)
+
+    def get_uid(self) -> str:
+        """Get a ID that is unique in this bridge
+
+        :return: Unique ID as string
+        """
+        return f"{self.__class__.__name__}_{self._config['object_id']}"
+
+    def get_object_id(self) -> str:
+        """Get the object id provided in the config file,
+        useful to filter devices of one type
+        """
+        return self._config['object_id']
 
     def get_name(self) -> str:
         """
