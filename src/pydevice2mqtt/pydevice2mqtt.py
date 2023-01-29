@@ -79,7 +79,13 @@ class DeviceBridge:
         elif mqtt_settings is not None:
             needed_mqtt_keys = ["ip", "port", "bridge_name", "discovery_prefix", "operating_prefix"]
             assert all([needed_key in mqtt_settings.keys() for needed_key in needed_mqtt_keys]), \
-                "Missing info in mqtt settings"
+                f"Missing info in mqtt settings. Provide at least: {', '.join(needed_mqtt_keys)}"
+            if "logging" not in mqtt_settings.keys():
+                mqtt_settings["logging"] = False
+            for entry in ["user", "pw"]:
+                if entry not in mqtt_settings.keys():
+                    mqtt_settings[entry] = None
+
             complete_config["mqtt_settings"] |= mqtt_settings
 
         else:
@@ -124,8 +130,12 @@ class DeviceBridge:
         self._mqtt_client = mqtt.Client()
         self._mqtt_client.on_connect = self._on_connect
         self._mqtt_client.on_message = self._on_message
-        self._mqtt_client.username_pw_set(username=mqtt_settings["user"],
-                                          password=mqtt_settings["pw"])
+
+        if mqtt_settings["user"] is not None and mqtt_settings["pw"] is not None:
+            self._mqtt_client.username_pw_set(username=mqtt_settings["user"],
+                                              password=mqtt_settings["pw"])
+        else:
+            logging.debug("Connect without credentials")
 
         self._mqtt_client.connect(host=mqtt_settings["ip"],
                                   port=mqtt_settings["port"],

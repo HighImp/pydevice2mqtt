@@ -47,11 +47,11 @@ class RemoteDevice:
                                  f"{self.get_uid()}/"
 
         self._logging_channel = None
-        if mqtt_settings["logging"] is not None:
+        if mqtt_settings["logging"]:
             self._logging_channel = f"{mqtt_settings['operating_prefix']}/" \
                                     f"{mqtt_settings['bridge_name']}/" \
                                     f"{self.get_uid()}/" \
-                                    f"{mqtt_settings['logging']}/"
+                                    f"log/"
 
         self._config = {"topic": self._discovery_prefix + "config"}
 
