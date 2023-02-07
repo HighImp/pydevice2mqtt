@@ -80,13 +80,15 @@ class RemoteDevice:
                           retain=False,
                           qos=1)
 
-    def _update(self, channel_name: str, message: any) -> None:
+    def _update(self, channel_name: str, message: any, retain: bool = False, qos: int = 1) -> None:
         """
         Publish the message in json format to the channel name
         (must be added by add_channel first)
 
         :param channel_name: name of the device channel
         :param message: any type of json dumpable data to publish
+        :param retain: Retain flag for this message
+        :param qos: qos level for this message
         :return: None
         """
 
@@ -97,8 +99,8 @@ class RemoteDevice:
 
         self._publish(topic=topic,
                       payload=message,
-                      retain=False,
-                      qos=1)
+                      retain=retain,
+                      qos=qos)
 
     def _add_channel(self, channel_name: str, sub_topic: str, on_message=None) -> None:
         """
@@ -495,3 +497,4 @@ class SubprocessCall(RemoteDevice):
                 return
 
             self._running_process.kill()
+

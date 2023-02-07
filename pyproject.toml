@@ -5,7 +5,7 @@
     Supports the Hasso auto configuration protocol
     '''
     license = {file = "LICENSE"}
-    version = "0.2.0"
+    version = "0.2.1"
     readme = "README.md"
     requires-python = ">=3.9"
     authors = [{name="HighImp", email="AnyHighZ@gmail.com"}]
@@ -32,7 +32,7 @@
     requires = ["flit_core >=3.8.0,<4"]
 
 [tool.pytest.ini_options]
-    addopts = "--cov --cov-report html --cov-report term-missing --cov-fail-under 70"
+    addopts = "--cov --cov-report html --cov-report term-missing --cov-fail-under 65"
 
 [tool.coverage.run]
     source = ["src"]

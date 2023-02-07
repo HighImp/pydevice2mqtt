@@ -175,7 +175,7 @@ class DeviceBridge:
             discover_info = device.get_discovery()
             self._mqtt_client.publish(topic=discover_info[0],
                                       payload=json.dumps(discover_info[1]),
-                                      retain=False,
+                                      retain=True,
                                       qos=1)
             logging.debug(f'{discover_info[0]}: "{discover_info[1]}"')
 
