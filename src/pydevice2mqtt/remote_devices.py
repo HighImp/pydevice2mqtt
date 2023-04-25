@@ -162,7 +162,9 @@ class RemoteDevice:
         """Returns a dict with the required keys and the expected data types as values
         :return: dict
         """
-        return cls._CONFIG_REQ | cls._BASE_CONFIG_REQ
+        config_req = cls._CONFIG_REQ.copy()
+        config_req.update(cls._BASE_CONFIG_REQ)
+        return config_req
 
 
 def supported_device_classes() -> dict:

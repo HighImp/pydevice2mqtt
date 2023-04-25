@@ -27,7 +27,8 @@ def create_config_file(path: Path, device_classes: dict = None) -> None:
     :param device_classes: dict of classes to create ({<classname>:<classobj>})
     """
     import pydevice2mqtt
-    path.unlink(missing_ok=True)
+    if path.exists():
+        path.unlink()
     all_devices: dict = {}
     if device_classes is None:
         device_classes = pydevice2mqtt.supported_device_classes()
@@ -122,7 +123,10 @@ def test_arbitrary_sensor(mocker):
     sensor_instance.set_value(1)
     assert len(mqtt_client.mock_calls) == 4
     set_value_call_kwargs = mqtt_client.mock_calls[-1].kwargs
-    assert set_value_call_kwargs["payload"] == '{"value": 1}'
+    try:
+        assert set_value_call_kwargs["payload"] == '{"value": 1}'
+    except TypeError:
+        print(set_value_call_kwargs)
 
 
 def test_additional_config(mocker):

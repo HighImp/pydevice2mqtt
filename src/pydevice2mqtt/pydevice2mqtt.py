@@ -45,7 +45,8 @@ class DeviceBridge:
             with open(config_file, "r") as config_stream:
                 complete_config = yaml.load(config_stream, yaml.SafeLoader)
             if force_update and mqtt_settings:
-                complete_config |= mqtt_settings
+                  
+                complete_config.update(mqtt_settings)
 
         elif mqtt_settings is not None:
             needed_mqtt_keys = ["ip", "port", "bridge_name", "discovery_prefix", "operating_prefix"]
@@ -57,7 +58,7 @@ class DeviceBridge:
                 if entry not in mqtt_settings.keys():
                     mqtt_settings[entry] = None
 
-            complete_config["mqtt_settings"] |= mqtt_settings
+            complete_config["mqtt_settings"].update(mqtt_settings)
 
         else:
             raise ValueError("MQTT Settings have to be set for new file creation!")
@@ -83,7 +84,7 @@ class DeviceBridge:
                         device_class_name].keys(), \
                         f"Found existing Device, updating {device_class_name} is forbidden!"
                 # update, no matter what
-                complete_config["remote_devices"][device_class_name] |= devices[device_class_name]
+                complete_config["remote_devices"][device_class_name].update(devices[device_class_name])
 
             else:  # device class not known, just copy the dict
                 complete_config["remote_devices"][device_class_name] = devices[device_class_name]
