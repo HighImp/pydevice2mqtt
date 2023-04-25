@@ -78,9 +78,9 @@ class RemoteDevice:
             self._publish(topic=self._logging_channel,
                           payload=print_string,
                           retain=False,
-                          qos=1)
+                          qos=0)
 
-    def _update(self, channel_name: str, message: any, retain: bool = False, qos: int = 1) -> None:
+    def _update(self, channel_name: str, message: any, retain: bool = False, qos: int = 0) -> None:
         """
         Publish the message in json format to the channel name
         (must be added by add_channel first)
