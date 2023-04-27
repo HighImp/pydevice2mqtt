@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import time
@@ -24,34 +25,22 @@ class RemoteDevice:
     _CONFIG_REQ = {}
 
     def __init__(self, device_settings: dict, mqtt_settings: dict):
-        self._operation_topics = defaultdict(MQTTChannel)
 
-        self._config: dict = {}
-        self._config["object_id"] = device_settings["object_id"]
-        self._discovery_prefix = f"{mqtt_settings['discovery_prefix']}/" \
-                                 f"{device_settings['device_class']}/" \
-                                 f"{mqtt_settings['bridge_name']}/" \
-                                 f"{self.get_uid()}/"
-
-        self._operating_prefix = f"{mqtt_settings['operating_prefix']}/" \
-                                 f"{mqtt_settings['bridge_name']}/" \
-                                 f"{self.get_uid()}/"
-
-        self._logging_channel = None
-        if mqtt_settings["logging"]:
-            self._logging_channel = f"{mqtt_settings['operating_prefix']}/" \
-                                    f"{mqtt_settings['bridge_name']}/" \
-                                    f"{self.get_uid()}/" \
-                                    f"log"
-
-        self._config["topic"] = f"{self._discovery_prefix}config"
-
-        self._add_channel(channel_name="state_topic",
-                          sub_topic="state",
-                          on_message=None)
+        uid_string = f"{mqtt_settings['operating_prefix']}_" \
+                     f"{mqtt_settings['bridge_name']}_" \
+                     f"{self.__class__.__name__}_" \
+                     f"{device_settings['object_id']}"
+        uid_hash = hashlib.sha1(uid_string.encode(), usedforsecurity=False)
+        self._uid = uid_hash.hexdigest()[:16]
 
         self._device_class = device_settings['device_class']
-        self._config["name"] = device_settings["name"]
+
+        # prepare auto config dict
+        self._config: dict = {"device": {"identifiers": [f"{mqtt_settings['operating_prefix']}_"
+                                                         f"{mqtt_settings['bridge_name']}"],
+                                         "name": mqtt_settings['bridge_name']}, "name": device_settings["name"],
+                              "unique_id": self._uid,
+                              "object_id": device_settings["object_id"]}
 
         # some devices may need special attributes to appear in a special manner in hassio,
         # there are too many to handle all of them, so add them via generic dict from config on demand
@@ -65,6 +54,31 @@ class RemoteDevice:
                 logging.warning("Could not apply optional attributes!")
             except AssertionError:
                 logging.warning(f"Could not overwrite a required item with the optional dict ({attribute})")
+
+        self._discovery_prefix = f"{mqtt_settings['discovery_prefix']}/" \
+                                 f"{device_settings['device_class']}/" \
+                                 f"{mqtt_settings['bridge_name']}/" \
+                                 f"{self.get_id()}/"
+
+        # store the discovery topic
+        self._config["discovery_topic"] = f"{self._discovery_prefix}config"
+
+        # prepare mqtt channels
+        self._operation_topics = defaultdict(MQTTChannel)
+        self._operating_prefix = f"{mqtt_settings['operating_prefix']}/" \
+                                 f"{mqtt_settings['bridge_name']}/" \
+                                 f"{self.get_id()}/"
+
+        self._logging_channel = None
+        if mqtt_settings["logging"]:
+            self._logging_channel = f"{mqtt_settings['operating_prefix']}/" \
+                                    f"{mqtt_settings['bridge_name']}/" \
+                                    f"{self.get_id()}/" \
+                                    f"log"
+
+        self._add_channel(channel_name="state_topic",
+                          sub_topic="state",
+                          on_message=None)
 
         # connect self._publish to the function publish
         self._publish = mqtt_settings["f_publish"]
@@ -115,12 +129,21 @@ class RemoteDevice:
 
         self._operation_topics[channel_name] = MQTTChannel(self._operating_prefix + sub_topic, on_message)
 
-    def get_uid(self) -> str:
-        """Get a ID that is unique in this bridge
+    def get_id(self) -> str:
+        """Get a human readable ID of the device,
+        unique in this bridge
 
-        :return: Unique ID as string
+        :return: ID as string
         """
-        return f"{self.__class__.__name__}_{self._config['object_id']}"
+        return f"{self.__class__.__name__}_{self.get_object_id()}"
+
+    def get_uid(self) -> str:
+        """Get a real UID of the endpoint,
+        sha1 hash over bridge and device information
+
+        :return: UID as string
+        """
+        return self._uid
 
     def get_object_id(self) -> str:
         """Get the object id provided in the config file,
@@ -140,11 +163,11 @@ class RemoteDevice:
         """"
         Generate the config dictionary in MQTT Discovery stile
 
-        :return: auto discover tuple with the discovery channel on index 0
+        :return: auto discover tuple with the discovery topic on index 0
         """
 
         auto_config = {**self._config, **{name: channel.topic for (name, channel) in self._operation_topics.items()}}
-        topic = auto_config.pop("topic")
+        topic = auto_config.pop("discovery_topic")
 
         return topic, auto_config
 
@@ -499,4 +522,3 @@ class SubprocessCall(RemoteDevice):
                 return
 
             self._running_process.kill()
-

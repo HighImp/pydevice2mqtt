@@ -95,6 +95,10 @@ def test_mqtt_channels(mocker):
         assert str(discover_topic).endswith("config")
         assert str(discover_info["state_topic"]).startswith(EXAMPLE_MQTT_SETTINGS["operating_prefix"])
         assert str(discover_info["state_topic"]).endswith("state")
+        assert discover_info["device"]["name"] == EXAMPLE_MQTT_SETTINGS["bridge_name"]
+        assert discover_info["device"]["identifiers"][0] == f"{EXAMPLE_MQTT_SETTINGS['operating_prefix']}_" \
+                                                            f"{EXAMPLE_MQTT_SETTINGS['bridge_name']}"
+        assert discover_info["unique_id"] == device.get_uid()
     my_bridge.configure_devices()
 
     assert mqtt_client.called
@@ -113,10 +117,10 @@ def test_arbitrary_sensor(mocker):
                                                                  device_classes=device_class)
 
     sensor_instance: pydevice2mqtt.remote_devices.ArbitrarySensor
-    expected_uid = f"ArbitrarySensor_{EXAMPLE_DATA[str]}"
+    expected_dev_id = f"ArbitrarySensor_{EXAMPLE_DATA[str]}"
 
-    sensor_instance = my_bridge.get_devices()[expected_uid]
-    assert sensor_instance.get_uid() == expected_uid
+    sensor_instance = my_bridge.get_devices()[expected_dev_id]
+    assert sensor_instance.get_id() == expected_dev_id
     assert sensor_instance.get_object_id() == EXAMPLE_DATA[str]
     assert sensor_instance.get_name() == EXAMPLE_DATA[str]
     assert len(mqtt_client.mock_calls) == 3
@@ -168,7 +172,7 @@ def test_additional_config(mocker):
     assert len(devices) == 3
 
     assert devices["RpiGpio_GPIO_PIN5"].get_discovery()[1]["gen_attr"] == "unrequired_info"
-
+    print(devices["RpiGpio_GPIO_PIN5"].get_discovery())
 
 if __name__ == "__main__":
     pytest.main(["-s", __file__])

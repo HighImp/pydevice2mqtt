@@ -124,8 +124,7 @@ class DeviceBridge:
                 device_settings["object_id"] = object_id
                 new_device: RemoteDevice = self._supported_device_classes[remote_device_class](device_settings,
                                                                                                mqtt_settings)
-                new_device_uid = new_device.get_uid()
-                self._devices[new_device_uid] = new_device
+                self._devices[new_device.get_id()] = new_device
 
         self._subscribed_channels_dict = {}
         for topic_function_dict in [device.get_device_topics() for device in self._devices.values()]:
@@ -171,8 +170,8 @@ class DeviceBridge:
     def configure_devices(self):
         """Register Bridge Devices by write the config in HASSIO style to the discovery channel
         """
-        for uid, device in self._devices.items():
-            logging.debug(f"Configure: {uid}")
+        for dev_id, device in self._devices.items():
+            logging.debug(f"Configure: {dev_id}")
             discover_info = device.get_discovery()
             self._mqtt_client.publish(topic=discover_info[0],
                                       payload=json.dumps(discover_info[1]),
@@ -183,8 +182,8 @@ class DeviceBridge:
     def delete_devices(self):
         """Unregister all devices by flushing the Discovery Channel
         """
-        for uid, device in self._devices.items():  # type: RemoteDevice
-            logging.debug(f"Unlink: {uid}")
+        for dev_id, device in self._devices.items():  # type: RemoteDevice
+            logging.debug(f"Unlink: {dev_id}")
             discover_info = device.get_discovery()
             self._mqtt_client.publish(topic=discover_info[0],
                                       payload="")
@@ -192,4 +191,4 @@ class DeviceBridge:
     def get_devices(self) -> Dict[str, RemoteDevice]:
         """Return a dict with all registered devices
         """
-        return {uid: device for uid, device in self._devices.items()}
+        return {dev_id: device for dev_id, device in self._devices.items()}
