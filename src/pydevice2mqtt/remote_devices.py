@@ -30,7 +30,8 @@ class RemoteDevice:
                      f"{mqtt_settings['bridge_name']}_" \
                      f"{self.__class__.__name__}_" \
                      f"{device_settings['object_id']}"
-        uid_hash = hashlib.sha1(uid_string.encode(), usedforsecurity=False)
+
+        uid_hash = hashlib.new("sha1", data=uid_string.encode(), usedforsecurity=False)
         self._uid = uid_hash.hexdigest()[:16]
 
         self._device_class = device_settings['device_class']
