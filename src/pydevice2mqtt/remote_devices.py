@@ -33,15 +33,14 @@ class RemoteDevice:
 
         uid_hash = hashlib.new("sha1", data=uid_string.encode(), usedforsecurity=False)
         self._uid = uid_hash.hexdigest()[:16]
-
+        self._object_id = device_settings['object_id']
         self._device_class = device_settings['device_class']
 
         # prepare auto config dict
         self._config: dict = {"device": {"identifiers": [f"{mqtt_settings['operating_prefix']}_"
                                                          f"{mqtt_settings['bridge_name']}"],
                                          "name": mqtt_settings['bridge_name']}, "name": device_settings["name"],
-                              "unique_id": self._uid,
-                              "object_id": device_settings["object_id"]}
+                              "unique_id": self._uid}
 
         # some devices may need special attributes to appear in a special manner in hassio,
         # there are too many to handle all of them, so add them via generic dict from config on demand
@@ -150,7 +149,7 @@ class RemoteDevice:
         """Get the object id provided in the config file,
         useful to filter devices of one type
         """
-        return self._config['object_id']
+        return self._object_id
 
     def get_name(self) -> str:
         """
