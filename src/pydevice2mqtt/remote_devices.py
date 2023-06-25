@@ -253,6 +253,35 @@ class ArbitrarySensor(RemoteDevice):
         self._last_value = value
 
 
+class Switch(RemoteDevice):
+    """Arbitrary Switch
+    Switches are by now the only devices who can trigger
+    an alexa routine. Its possible to connect a function to set or get the value,
+    but its written to use devices as boolean variables
+    """
+
+    def __init__(self, device_settings, mqtt_settings):
+        device_settings["device_class"] = "switch"
+        super().__init__(device_settings, mqtt_settings)
+        self._state: str = "OFF"
+        self._add_channel(channel_name="command_topic",
+                          sub_topic="set",
+                          on_message=self.set_value)
+        self._config["payload_off"] = "OFF"
+        self._config["payload_on"] = "ON"
+
+    def set_value(self, value):
+        if value and value != "OFF":
+            self._state = "ON"
+        else:
+            self._state = "OFF"
+        self._update(channel_name="state_topic",
+                     message=self._state)
+
+    def get_value(self):
+        return self._state
+
+
 class RpiGpio(RemoteDevice):
     """
     Raspberry PI Remote Gpio device

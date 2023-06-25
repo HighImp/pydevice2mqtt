@@ -132,6 +132,35 @@ def test_arbitrary_sensor(mocker):
     except TypeError:
         print(set_value_call_kwargs)
 
+def test_switch(mocker):
+    import pydevice2mqtt
+    mqtt_client: MagicMock = mocker.patch("pydevice2mqtt.pydevice2mqtt.mqtt.Client")
+    mocker.patch("pydevice2mqtt.remote_devices.espeak")
+    mocker.patch("pydevice2mqtt.remote_devices.gpiozero")
+
+    device_class = {"Switch": pydevice2mqtt.remote_devices.Switch}
+    my_bridge: pydevice2mqtt.DeviceBridge = create_device_bridge(mocked_module=pydevice2mqtt,
+                                                                 device_classes=device_class)
+    switch_instance: pydevice2mqtt.remote_devices.Switch
+    expected_dev_id = f"Switch_{EXAMPLE_DATA[str]}"
+    switch_instance = my_bridge.get_devices()[expected_dev_id]
+    assert switch_instance.get_id() == expected_dev_id
+    assert switch_instance.get_object_id() == EXAMPLE_DATA[str]
+    assert switch_instance.get_name() == EXAMPLE_DATA[str]
+    assert len(mqtt_client.mock_calls) == 3
+    for set_value in ["ON", 1, True]:
+        switch_instance.set_value(set_value)
+        assert switch_instance.get_value() == "ON"
+        switch_instance.set_value("OFF")
+        assert switch_instance.get_value() == "OFF"
+
+    for set_value in ["OFF", 0, False, None]:
+        switch_instance.set_value(set_value)
+        assert switch_instance.get_value() == "OFF"
+        switch_instance.set_value("ON")
+        assert switch_instance.get_value() == "ON"
+
+    print(switch_instance.get_discovery())
 
 def test_additional_config(mocker):
     import pydevice2mqtt
